@@ -2,7 +2,6 @@
 # 🤖 Enhanced Machine Learning Training Platform
 
 ![Streamlit](https://img.shields.io/badge/Built%20With-Streamlit-red?style=for-the-badge)
-![License](https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Development-blue?style=for-the-badge)
 
 Platform machine learning canggih yang dilengkapi dengan fitur-fitur terdepan untuk training model dan klasifikasi data. Dengan interface yang intuitif dan teknologi terkini, Anda dapat membangun model ML berkualitas tinggi tanpa coding yang rumit.
