@@ -56,7 +56,7 @@ def classification_page():
     """
     col1, col2, col3 = st.columns([1, 6, 1])
     with col1:
-        if st.button("⬅️ Home", key="classification_back_home", type="secondary"):
+        if st.button("🏠 Home", key="classification_back_home", type="secondary"):
             st.session_state.current_page = 'home'
             st.rerun()
     
