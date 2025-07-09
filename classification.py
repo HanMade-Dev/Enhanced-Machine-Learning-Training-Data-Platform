@@ -2,14 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 from utils import (
-    load_model_from_file, validate_model_package, create_sample_data_template, 
+    validate_model_package, 
     export_predictions_to_csv, load_external_model_flexible, 
     detect_model_format_and_requirements
 )
 from datetime import datetime
-import io
 
 def detect_csv_delimiter_advanced(file_content):
     """
