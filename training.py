@@ -142,27 +142,23 @@ def enhanced_data_upload_step():
         
         st.dataframe(pd.DataFrame(file_info), use_container_width=True)
         
-
         if st.button("🔍 Load & Preview Data", type="primary", use_container_width=True):
             with st.spinner("Loading and analyzing data..."):
                 try:
-
                     data = load_data(uploaded_files, header_row=0, headers_not_in_first_row=False)
                     
                     if data is not None:
                         st.session_state.raw_data = data
+                        st.session_state.original_raw_data = data.copy()  # Store original
                         st.session_state.preview_data = data  
                         
                         st.success("✅ Data loaded successfully!")
-                        
-
                         display_data_preview_and_analysis(data)
                         
                 except Exception as e:
                     st.error(f"❌ Error loading data: {str(e)}")
                     st.error("💡 Please check your file format and configuration.")
         
-
         if hasattr(st.session_state, 'preview_data') and st.session_state.preview_data is not None:
             st.markdown("---")
             st.subheader("⚙️ Advanced Configuration")
@@ -172,8 +168,8 @@ def enhanced_data_upload_step():
             
             with col1:
                 use_custom_header = st.checkbox(
-                    "Headers not in first row",
-                    help="Check if column headers are not in the first row"
+                    "Headers (row) selection",
+                    help="Pilih row untuk header dari kolom data yang ingin digunakan"
                 )
                 
                 header_row = 0
@@ -187,11 +183,10 @@ def enhanced_data_upload_step():
             
             with col2:
                 use_specific_columns = st.checkbox(
-                    "Gunakan Kolom Tertentu",
+                    "Column  sellection",
                     help="Pilih kolom spesifik yang ingin digunakan untuk pelatihan"
                 )
             
-
             show_config_form = use_custom_header or use_specific_columns
             selected_columns = None
             
@@ -213,7 +208,6 @@ def enhanced_data_upload_step():
                 if st.button("🔧 Apply Configuration & Update Data", type="secondary", use_container_width=True):
                     with st.spinner("Applying configuration and reloading data..."):
                         try:
-
                             updated_data = load_data(
                                 uploaded_files, 
                                 header_row=header_row, 
@@ -221,22 +215,18 @@ def enhanced_data_upload_step():
                             )
                             
                             if updated_data is not None:
-
                                 if use_specific_columns and selected_columns:
                                     updated_data = updated_data[selected_columns]
                                 
-
                                 st.session_state.raw_data = updated_data
+                                st.session_state.original_raw_data = updated_data.copy()  # Update original
                                 st.session_state.preview_data = updated_data
                                 
                                 st.success("✅ Configuration applied successfully!")
-                                
-
                                 display_data_preview_and_analysis(updated_data)
                                 
                         except Exception as e:
                             st.error(f"❌ Error applying configuration: {str(e)}")
-
 
     if hasattr(st.session_state, 'raw_data') and st.session_state.raw_data is not None:
         st.markdown("---")
@@ -245,9 +235,10 @@ def enhanced_data_upload_step():
         col1, col2 = st.columns([1, 1])
         with col1:
             if st.button("♻️ Reload Data", key="reload_data"):
-
                 if 'raw_data' in st.session_state:
                     del st.session_state.raw_data
+                if 'original_raw_data' in st.session_state:
+                    del st.session_state.original_raw_data
                 if 'preview_data' in st.session_state:
                     del st.session_state.preview_data
                 st.rerun()
@@ -273,34 +264,8 @@ def display_data_preview_and_analysis(data):
     st.subheader("📋 Data Preview & Analysis")
     enhanced_data_preview(data)
 
-def show_data_quality_report(data):
-    """Show comprehensive data quality report"""
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        missing_stats = data.isnull().sum()
-        if missing_stats.sum() > 0:
-            st.warning(f"⚠️ Found missing values in {(missing_stats > 0).sum()} columns")
-            missing_df = missing_stats[missing_stats > 0].to_frame("Missing Count")
-            missing_df["Percentage"] = (missing_df["Missing Count"] / len(data) * 100).round(2)
-            st.dataframe(missing_df)
-        else:
-            st.success("✅ No missing values detected")
-    
-    with col2:
-        dtype_counts = data.dtypes.value_counts()
-        st.write("**Data Types Distribution:**")
-        for dtype, count in dtype_counts.items():
-            st.write(f"- {dtype}: {count} columns")
-        
-        memory_usage = data.memory_usage(deep=True).sum() / 1024**2
-        if memory_usage > 100:
-            st.warning(f"⚠️ Large dataset: {memory_usage:.1f} MB")
-        else:
-            st.success(f"✅ Memory usage: {memory_usage:.1f} MB")
-
 def enhanced_data_preprocessing_step():
-    """Enhanced preprocessing with modular optional steps"""
+    """FIXED: Enhanced preprocessing with modular optional steps and data reset functionality"""
     st.header("2. ⚙️ Advanced Data Preprocessing")
     
     if not hasattr(st.session_state, 'raw_data') or st.session_state.raw_data is None:
@@ -312,7 +277,8 @@ def enhanced_data_preprocessing_step():
     
     data = st.session_state.raw_data
 
-    if 'processed_data' not in st.session_state:
+    # Initialize processed_data if not exists
+    if 'processed_data' not in st.session_state or st.session_state.processed_data is None:
         st.session_state.processed_data = data.copy()
 
     st.subheader("📊 Original Data Preview")
@@ -339,7 +305,7 @@ def enhanced_data_preprocessing_step():
 
     st.subheader("🔧 Preprocessing Pipeline Configuration")
     
-
+    # Step 1: Missing Values
     step1_col1, step1_col2 = st.columns([1, 3])
     with step1_col1:
         enable_missing = st.checkbox("✅ Apply Missing Value Handling", key="enable_missing")
@@ -349,14 +315,14 @@ def enhanced_data_preprocessing_step():
     
     if enable_missing and st.session_state.get('show_missing_config', False):
         with st.expander("🧹 Missing Values Configuration", expanded=True):
-            missing_config = configure_missing_values_step(data)
+            missing_config = configure_missing_values_step(st.session_state.processed_data)
             if st.button("▶️ Apply Missing Value Handling", key="apply_missing"):
                 st.session_state.processed_data = apply_missing_values_step(st.session_state.processed_data, missing_config)
                 st.session_state.show_missing_config = False
                 st.success("✅ Missing value handling applied!")
                 st.rerun()
     
-
+    # Step 2: Outlier Detection
     step2_col1, step2_col2 = st.columns([1, 3])
     with step2_col1:
         enable_outliers = st.checkbox("✅ Apply Outlier Detection", key="enable_outliers")
@@ -374,7 +340,7 @@ def enhanced_data_preprocessing_step():
                 st.success("✅ Outlier detection applied!")
                 st.rerun()
     
-
+    # Step 3: Feature Engineering
     step3_col1, step3_col2 = st.columns([1, 3])
     with step3_col1:
         enable_feature_eng = st.checkbox("✅ Apply Feature Engineering", key="enable_feature_eng")
@@ -392,7 +358,7 @@ def enhanced_data_preprocessing_step():
                 st.success("✅ Feature engineering applied!")
                 st.rerun()
     
-
+    # Step 4: Normalization
     step4_col1, step4_col2 = st.columns([1, 3])
     with step4_col1:
         enable_normalization = st.checkbox("✅ Apply Normalization", key="enable_normalization")
@@ -409,9 +375,34 @@ def enhanced_data_preprocessing_step():
                 st.success("✅ Normalization applied!")
                 st.rerun()
 
+    # Current Processed Data Preview with RESET functionality
     if 'processed_data' in st.session_state:
         st.markdown("---")
         st.subheader("📋 Current Processed Data Preview")
+        
+        # NEW: Add reset button
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.write("**Current processed data:**")
+        with col2:
+            if st.button("🔄 Reset to Original", key="reset_to_original", help="Reset data to original uploaded state"):
+                if hasattr(st.session_state, 'original_raw_data') and st.session_state.original_raw_data is not None:
+                    st.session_state.processed_data = st.session_state.original_raw_data.copy()
+                    st.session_state.raw_data = st.session_state.original_raw_data.copy()
+                    # Clear preprocessing flags
+                    st.session_state.show_missing_config = False
+                    st.session_state.show_outlier_config = False
+                    st.session_state.show_feature_eng_config = False
+                    st.session_state.show_normalization_config = False
+                    st.success("✅ Data reset to original state!")
+                    st.rerun()
+                else:
+                    st.error("❌ Original data not available")
+        with col3:
+            if st.button("📊 Show Comparison", key="show_comparison"):
+                if hasattr(st.session_state, 'original_raw_data'):
+                    show_data_comparison(st.session_state.original_raw_data, st.session_state.processed_data)
+        
         st.dataframe(st.session_state.processed_data.head(), use_container_width=True)
 
         original_shape = data.shape
@@ -451,6 +442,35 @@ def enhanced_data_preprocessing_step():
                 st.session_state.training_step = 3
                 st.rerun()
 
+def show_data_comparison(original_data, processed_data):
+    """NEW: Show comparison between original and processed data"""
+    st.subheader("📊 Data Comparison: Original vs Processed")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Original Data:**")
+        st.write(f"- Shape: {original_data.shape}")
+        st.write(f"- Missing values: {original_data.isnull().sum().sum()}")
+        st.write(f"- Data types: {original_data.dtypes.value_counts().to_dict()}")
+        
+    with col2:
+        st.write("**Processed Data:**")
+        st.write(f"- Shape: {processed_data.shape}")
+        st.write(f"- Missing values: {processed_data.isnull().sum().sum()}")
+        st.write(f"- Data types: {processed_data.dtypes.value_counts().to_dict()}")
+    
+    # Show changes
+    shape_change = (processed_data.shape[0] - original_data.shape[0], processed_data.shape[1] - original_data.shape[1])
+    missing_change = processed_data.isnull().sum().sum() - original_data.isnull().sum().sum()
+    
+    st.write("**Changes Applied:**")
+    if shape_change[0] != 0:
+        st.write(f"- Rows: {shape_change[0]:+d}")
+    if shape_change[1] != 0:
+        st.write(f"- Columns: {shape_change[1]:+d}")
+    if missing_change != 0:
+        st.write(f"- Missing values: {missing_change:+d}")
 
 def configure_missing_values_step(data):
     """Configure missing values handling"""
@@ -475,7 +495,7 @@ def configure_missing_values_step(data):
             [
                 "Remove rows with any missing values",
                 "Remove rows with missing values in selected columns only",
-                "Imputation (fill missing values)"
+                "Fill missing values (Imputation)"
             ]
         )
         
@@ -490,7 +510,7 @@ def configure_missing_values_step(data):
             )
             config["selected_columns"] = selected_columns
         
-        elif "imputation" in strategy.lower():
+        elif "imputation" in strategy.lower() or "fill" in strategy.lower():
             col1, col2 = st.columns(2)
             with col1:
                 numeric_method = st.selectbox(
@@ -502,11 +522,11 @@ def configure_missing_values_step(data):
             with col2:
                 categorical_method = st.selectbox(
                     "Categorical columns method:",
-                    ["Mode", "Constant value"]
+                    ["Mode", "A constant value"]
                 )
                 config["categorical_method"] = categorical_method
                 
-                if categorical_method == "Constant value":
+                if categorical_method == "A constant value":
                     categorical_fill_value = st.text_input("Fill value:", "Unknown")
                     config["categorical_fill_value"] = categorical_fill_value
         
@@ -517,46 +537,17 @@ def configure_missing_values_step(data):
 
 def apply_missing_values_step(data, config):
     """Apply missing values handling"""
-    df = data.copy()
-    
-    if config["strategy"] == "Remove rows with any missing values":
-        df = df.dropna()
-    
-    elif config["strategy"] == "Remove rows with missing values in selected columns only":
-        selected_columns = config.get("selected_columns", [])
-        if selected_columns:
-            df = df.dropna(subset=selected_columns)
-    
-    elif "imputation" in config["strategy"].lower():
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
+    if config["strategy"] == "none":
+        return data
         
-        for col in numeric_cols:
-            if df[col].isnull().any():
-                if config["numeric_method"] == "Mean":
-                    df[col].fillna(df[col].mean(), inplace=True)
-                elif config["numeric_method"] == "Median":
-                    df[col].fillna(df[col].median(), inplace=True)
-                elif config["numeric_method"] == "Zero":
-                    df[col].fillna(0, inplace=True)
-                elif config["numeric_method"] == "Mode":
-                    mode_value = df[col].mode()
-                    if len(mode_value) > 0:
-                        df[col].fillna(mode_value[0], inplace=True)
-        
-        categorical_cols = df.select_dtypes(include=['object', 'string', 'category']).columns
-        
-        for col in categorical_cols:
-            if df[col].isnull().any():
-                if config["categorical_method"] == "Mode":
-                    mode_value = df[col].mode()
-                    if len(mode_value) > 0:
-                        df[col].fillna(mode_value[0], inplace=True)
-                    else:
-                        df[col].fillna("Unknown", inplace=True)
-                elif config["categorical_method"] == "Constant value":
-                    df[col].fillna(config.get("categorical_fill_value", "Unknown"), inplace=True)
-    
-    return df
+    return handle_missing_values(
+        data, 
+        config["strategy"], 
+        config.get("selected_columns"),
+        config.get("numeric_method", "Mean"),
+        config.get("categorical_method", "Mode"),
+        config.get("categorical_fill_value", "Unknown")
+    )
 
 def configure_outlier_detection_step(data):
     """Configure outlier detection"""
@@ -618,8 +609,8 @@ def apply_outlier_detection_step(data, config):
     return detect_and_handle_outliers(data, method=config["method"], action=config["action"])
 
 def configure_feature_engineering_step(data):
-    """Configure feature engineering with advanced options"""
-    st.write("**🔙 Feature Engineering Configuration**")
+    """FIXED: Configure feature engineering with proper encoding options"""
+    st.write("**🔧 Feature Engineering Configuration**")
     
     config = {}
     
@@ -630,19 +621,19 @@ def configure_feature_engineering_step(data):
         
         encoding_method = st.selectbox(
             "Choose encoding method:",
-            ["Auto (based on cardinality)", "One-Hot Encoding", "Label Encoding", "Target Encoding"]
+            ["Auto", "One-Hot Encoding", "Label Encoding"]
         )
         config["encoding_method"] = encoding_method
         
-        if encoding_method == "Auto (based on cardinality)":
+        if encoding_method == "Auto":
             cardinality_threshold = st.slider(
                 "Cardinality threshold for one-hot encoding:",
                 2, 20, 10,
-                help="Columns with fewer unique values will use one-hot encoding"
+                help="Columns with fewer unique values will use one-hot encoding, others will use label encoding"
             )
             config["cardinality_threshold"] = cardinality_threshold
     
-
+    # Interaction Features
     st.write("**➕ Interaction Features**")
     
     create_interactions = st.checkbox(
@@ -655,7 +646,6 @@ def configure_feature_engineering_step(data):
         interaction_degree = st.slider("Polynomial degree:", 2, 3, 2)
         config["interaction_degree"] = interaction_degree
         
-
         numeric_columns = data.select_dtypes(include=[np.number]).columns.tolist()
         if numeric_columns:
             selected_interaction_cols = st.multiselect(
@@ -663,92 +653,20 @@ def configure_feature_engineering_step(data):
                 numeric_columns,
                 default=numeric_columns[:3] if len(numeric_columns) > 3 else numeric_columns
             )
-            config["interaction_columns"] = selected_interaction_cols
+            config["selected_interaction_cols"] = selected_interaction_cols
     
     return config
 
 def apply_feature_engineering_step(data, config):
-    """Apply feature engineering with advanced options"""
-    df = data.copy()
-    new_features = []
-    
-    encoding_method = config.get("encoding_method", "Auto (based on cardinality)")
-    categorical_columns = df.select_dtypes(include=['object', 'string', 'category']).columns
-    
-    for col in categorical_columns:
-        if f'{col}_encoded' in df.columns:
-            continue
-            
-        unique_count = df[col].nunique()
-        
-        if encoding_method == "Auto (based on cardinality)":
-            threshold = config.get("cardinality_threshold", 10)
-            if unique_count <= threshold and unique_count > 1:
-
-                try:
-                    df[col] = df[col].fillna('Unknown')
-                    dummies = pd.get_dummies(df[col], prefix=col, drop_first=True, dtype=int)
-                    df = pd.concat([df, dummies], axis=1)
-                    new_features.extend(dummies.columns.tolist())
-                    df = df.drop(columns=[col])
-                except Exception as e:
-                    st.error(f"Error in one-hot encoding for {col}: {str(e)}")
-            else:
-
-                try:
-                    df[col] = df[col].fillna('Unknown')
-                    le = LabelEncoder()
-                    df[f'{col}_encoded'] = le.fit_transform(df[col].astype(str))
-                    new_features.append(f'{col}_encoded')
-                    df = df.drop(columns=[col])
-                except Exception as e:
-                    st.error(f"Error in label encoding for {col}: {str(e)}")
-    
-
-    if config.get("create_interactions", False):
-        from sklearn.preprocessing import PolynomialFeatures
-        
-        interaction_columns = config.get("interaction_columns", [])
-        degree = config.get("interaction_degree", 2)
-        
-        if interaction_columns:
-            try:
-
-                interaction_data = df[interaction_columns]
-                
-
-                poly = PolynomialFeatures(degree=degree, include_bias=False, interaction_only=False)
-                poly_features = poly.fit_transform(interaction_data)
-                
-
-                feature_names = poly.get_feature_names_out(interaction_columns)
-                
-
-                poly_df = pd.DataFrame(poly_features, columns=feature_names, index=df.index)
-                
-
-                original_features = interaction_columns
-                poly_df = poly_df.drop(columns=original_features, errors='ignore')
-                
-
-                df = pd.concat([df, poly_df], axis=1)
-                new_features.extend(poly_df.columns.tolist())
-                
-            except Exception as e:
-                st.error(f"Error creating interaction features: {str(e)}")
-    
-
-    for col in df.columns:
-        if df[col].dtype == 'object':
-            try:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                df[col] = df[col].fillna(0)
-            except:
-                df = df.drop(columns=[col])
-                if col in new_features:
-                    new_features.remove(col)
-    
-    return df, new_features
+    """FIXED: Apply feature engineering with proper encoding"""
+    return advanced_feature_engineering(
+        data,
+        encoding_method=config.get("encoding_method", "Auto"),
+        cardinality_threshold=config.get("cardinality_threshold", 10),
+        create_interactions=config.get("create_interactions", False),
+        interaction_degree=config.get("interaction_degree", 2),
+        selected_interaction_cols=config.get("selected_interaction_cols", [])
+    )
 
 def configure_normalization_step(data):
     """Configure normalization"""
@@ -762,10 +680,9 @@ def configure_normalization_step(data):
     
     normalization_method = st.selectbox(
         "Choose normalization method:",
-        ["Min-Max Scaling", "Standard Scaling", "Robust Scaling", "Unit Vector Scaling"]
+        ["Min-Max Scaling", "Standard Scaling", "Robust Scaling"]
     )
     
-
     selected_numeric_cols = st.multiselect(
         "Select columns to normalize:",
         numeric_columns,
@@ -785,26 +702,7 @@ def apply_normalization_step(data, config):
     if config["method"] == "none":
         return data
     
-    df = data.copy()
-    selected_columns = config.get("selected_columns", [])
-    
-    if not selected_columns:
-        return df
-    
-    method = config["method"]
-    
-    if method == "Min-Max Scaling":
-        scaler = MinMaxScaler()
-    elif method == "Standard Scaling":
-        scaler = StandardScaler()
-    elif method == "Robust Scaling":
-        scaler = RobustScaler()
-    else:
-        return df
-    
-    df[selected_columns] = scaler.fit_transform(df[selected_columns])
-    
-    return df
+    return normalize_data(data, method=config["method"], selected_columns=config.get("selected_columns"))
 
 def validate_processed_data(data):
     """Validate processed data"""
@@ -815,14 +713,14 @@ def validate_processed_data(data):
         "info": []
     }
     
-
+    # Check for missing values
     missing_count = data.isnull().sum().sum()
     if missing_count > 0:
         validation_results["warnings"].append(f"Found {missing_count} missing values")
     else:
         validation_results["info"].append("No missing values found")
     
-
+    # Check for non-numeric columns
     non_numeric_cols = []
     for col in data.columns:
         if not pd.api.types.is_numeric_dtype(data[col]):
@@ -834,14 +732,14 @@ def validate_processed_data(data):
     else:
         validation_results["info"].append("All columns are numeric")
     
-
+    # Check for infinite values
     inf_count = np.isinf(data.select_dtypes(include=[np.number])).sum().sum()
     if inf_count > 0:
         validation_results["warnings"].append(f"Found {inf_count} infinite values")
     else:
         validation_results["info"].append("No infinite values found")
     
-
+    # Check dataset size
     if data.shape[0] == 0:
         validation_results["issues"].append("Dataset is empty (0 rows)")
         validation_results["is_valid"] = False
@@ -860,19 +758,16 @@ def display_validation_results(validation_results):
     else:
         st.error("❌ Data validation failed!")
     
-
     if validation_results["issues"]:
         st.error("**Issues that need to be fixed:**")
         for issue in validation_results["issues"]:
             st.error(f"• {issue}")
     
-
     if validation_results["warnings"]:
         st.warning("**Warnings:**")
         for warning in validation_results["warnings"]:
             st.warning(f"• {warning}")
     
-
     if validation_results["info"]:
         st.info("**Information:**")
         for info in validation_results["info"]:
@@ -918,7 +813,7 @@ def enhanced_model_training_step():
     target_column = st.session_state.target_column
     feature_columns = st.session_state.feature_columns
     
-
+    # Dataset Summary
     st.subheader("📊 Dataset Summary")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -931,13 +826,13 @@ def enhanced_model_training_step():
         missing_count = data.isnull().sum().sum()
         st.metric("Missing Values", missing_count)
     
-
+    # Detect task type
     is_classification = data[target_column].dtype == 'object' or len(data[target_column].unique()) < 20
     task_type = "Classification" if is_classification else "Regression"
     
     st.info(f"🎯 **Detected Task Type:** {task_type}")
     
-
+    # Model Training Tabs
     tab1, tab2, tab3, tab4 = st.tabs([
         "🎯 Model Selection", 
         "🔧 Hyperparameter Tuning", 
@@ -957,14 +852,14 @@ def enhanced_model_training_step():
     with tab4:
         training_configuration_section()
     
-
+    # Execute Training
     st.markdown("---")
     st.subheader("🚀 Execute Training")
     
     if st.button("▶️ Start Training Process", type="primary", use_container_width=True):
         execute_training_process(data, target_column, feature_columns, is_classification)
     
-
+    # Navigation
     col1, col2 = st.columns(2)
     with col1:
         if st.button("⬅️ Back to Feature Selection", key="back_to_feature_selection_from_training"):
@@ -983,13 +878,13 @@ def model_selection_section(is_classification):
     
     available_models = get_available_models(True)
     
-
+    # Filter models based on task type
     if is_classification:
         model_options = [k for k in available_models.keys() if 'Classifier' in k or k in ['Logistic Regression', 'Gaussian Naive Bayes']]
     else:
         model_options = [k for k in available_models.keys() if 'Regressor' in k or k == 'Linear Regression']
     
-
+    # Model selection
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -1019,13 +914,13 @@ def model_selection_section(is_classification):
             - **SVR**: Good for non-linear patterns
             """)
     
-
+    # Model parameters
     if selected_model in available_models:
         st.subheader("⚙️ Model Parameters")
         params_config = available_models[selected_model]["params"]
         model_params = {}
         
-
+        # Create parameter inputs
         param_cols = st.columns(2)
         param_idx = 0
         
@@ -1104,13 +999,13 @@ def hyperparameter_tuning_section(data, target_column, feature_columns, is_class
             else:
                 max_iter = None
         
-
+        # Store tuning configuration
         st.session_state.enable_tuning = enable_tuning
         st.session_state.search_method = search_method
         st.session_state.cv_folds = cv_folds
         st.session_state.max_iter = max_iter
         
-
+        # Preview hyperparameter space
         if st.button("🔍 Preview Hyperparameter Space"):
             if hasattr(st.session_state, 'selected_model'):
                 selected_model = st.session_state.selected_model
@@ -1124,7 +1019,7 @@ def hyperparameter_tuning_section(data, target_column, feature_columns, is_class
                         for param, values in param_grid.items():
                             st.write(f"- **{param}**: {values}")
                         
-
+                        # Calculate total combinations
                         total_combinations = 1
                         for values in param_grid.values():
                             total_combinations *= len(values)
@@ -1150,13 +1045,13 @@ def model_comparison_section(data, target_column, feature_columns, is_classifica
     if enable_comparison:
         available_models = get_available_models(True)
         
-
+        # Filter models based on task type
         if is_classification:
             all_models = [k for k in available_models.keys() if 'Classifier' in k or k in ['Logistic Regression', 'Gaussian Naive Bayes']]
         else:
             all_models = [k for k in available_models.keys() if 'Regressor' in k or k == 'Linear Regression']
         
-
+        # Model selection for comparison
         models_to_compare = st.multiselect(
             "Select models to compare:",
             all_models,
@@ -1170,19 +1065,19 @@ def model_comparison_section(data, target_column, feature_columns, is_classifica
             help="Number of folds for model comparison"
         )
         
-
+        # Store comparison configuration
         st.session_state.enable_comparison = enable_comparison
         st.session_state.models_to_compare = models_to_compare
         st.session_state.comparison_cv_folds = comparison_cv_folds
         
-
+        # Preview model comparison
         if st.button("🔍 Preview Model Comparison"):
             if models_to_compare:
                 st.write(f"**Will compare {len(models_to_compare)} models:**")
                 for model in models_to_compare:
                     st.write(f"- {model}")
                 
-                estimated_time = len(models_to_compare) * comparison_cv_folds * 2  
+                estimated_time = len(models_to_compare) * comparison_cv_folds * 2  # rough estimate
                 st.info(f"⏱️ Estimated comparison time: ~{estimated_time} seconds")
 
 def training_configuration_section():
@@ -1212,7 +1107,7 @@ def training_configuration_section():
             help="Use stratified sampling for train/test split"
         )
     
-
+    # Cross-validation settings
     st.write("**🔍 Cross-Validation Settings**")
     
     col1, col2 = st.columns(2)
@@ -1234,7 +1129,7 @@ def training_configuration_section():
         else:
             cv_folds_training = 5
     
-
+    # Store training configuration
     st.session_state.test_size = test_size
     st.session_state.random_state = random_state
     st.session_state.use_stratify = use_stratify
@@ -1254,6 +1149,7 @@ def execute_training_process(data, target_column, feature_columns, is_classifica
             
             results = {}
             
+            # Model comparison
             if getattr(st.session_state, 'enable_comparison', False):
                 st.write("📊 Running model comparison...")
                 models_to_compare = getattr(st.session_state, 'models_to_compare', [])
@@ -1296,6 +1192,7 @@ def execute_training_process(data, target_column, feature_columns, is_classifica
                         st.success(f"🏆 **Best Model:** {recommendations['best_model']}")
                         st.info(f"📊 **Best Score:** {recommendations['best_score']:.4f}")
             
+            # Hyperparameter tuning
             best_params = None
             if getattr(st.session_state, 'enable_tuning', False):
                 st.write("🔧 Running hyperparameter tuning...")
@@ -1324,6 +1221,7 @@ def execute_training_process(data, target_column, feature_columns, is_classifica
                     else:
                         st.error(f"Error in hyperparameter tuning: {tuning_results['error']}")
             
+            # Train final model
             st.write("🏗️ Training final model...")
 
             if best_params:
@@ -1338,6 +1236,7 @@ def execute_training_process(data, target_column, feature_columns, is_classifica
                 test_size, random_state, use_stratify
             )
             
+            # Cross-validation
             cv_results = None
             if getattr(st.session_state, 'enable_cv', True):
                 st.write("🔍 Performing cross-validation...")
@@ -1348,6 +1247,7 @@ def execute_training_process(data, target_column, feature_columns, is_classifica
                 )
                 results['cv_results'] = cv_results
             
+            # Store training information
             training_info = {
                 'model': trained_model,
                 'model_name': selected_model,
@@ -1447,7 +1347,7 @@ def enhanced_model_evaluation_step():
     y_test = training_info['y_test']
     label_encoder = training_info.get('label_encoder')
     
-
+    # Evaluate model
     with st.spinner("🔍 Evaluating model performance..."):
         evaluation_results = evaluate_model(model, X_test, y_test, True)
         
@@ -1459,7 +1359,7 @@ def enhanced_model_evaluation_step():
             except:
                 pass
         
-
+        # Add training results if available
         if hasattr(st.session_state, 'training_results'):
             training_results = st.session_state.training_results
             if 'cv_results' in training_results:
@@ -1467,7 +1367,7 @@ def enhanced_model_evaluation_step():
         
         st.session_state.model_evaluation = evaluation_results
     
-
+    # Display evaluation results in tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Performance Metrics",
         "📈 Visualizations", 
@@ -1491,7 +1391,7 @@ def enhanced_model_evaluation_step():
     with tab5:
         export_and_deployment_section(training_info, evaluation_results)
     
-
+    # Navigation
     col1, col2 = st.columns(2)
     with col1:
         if st.button("⬅️ Back to Training", key="back_to_training_from_eval"):
@@ -1507,11 +1407,11 @@ def display_performance_metrics(evaluation_results):
     """Display comprehensive performance metrics"""
     st.subheader("📊 Performance Metrics Overview")
     
-
+    # Determine if classification or regression
     is_classification = 'accuracy' in evaluation_results
     
     if is_classification:
-
+        # Classification metrics
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -1530,7 +1430,7 @@ def display_performance_metrics(evaluation_results):
             f1 = evaluation_results.get('f1', 0)
             st.metric("F1-Score", f"{f1:.4f}", f"{f1*100:.2f}%")
         
-
+        # Additional classification metrics
         if 'roc_auc' in evaluation_results:
             col1, col2 = st.columns(2)
             with col1:
@@ -1543,7 +1443,7 @@ def display_performance_metrics(evaluation_results):
                     st.metric("Average Precision", f"{avg_precision:.4f}")
     
     else:
-
+        # Regression metrics
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -1565,7 +1465,7 @@ def display_performance_metrics(evaluation_results):
             else:
                 st.metric("MAPE", "N/A")
     
-
+    # Cross-validation results
     if 'cv_results' in evaluation_results:
         st.subheader("🟢 Cross-Validation Results")
         cv_results = evaluation_results['cv_results']
@@ -1587,46 +1487,46 @@ def display_evaluation_visualizations(evaluation_results):
     """Display evaluation visualizations"""
     st.subheader("📈 Performance Visualizations")
     
-
+    # Determine if classification or regression
     is_classification = 'accuracy' in evaluation_results
     
     if is_classification:
-
+        # Classification visualizations
         
-
+        # Confusion Matrix
         if 'interactive_confusion_matrix' in evaluation_results:
             st.subheader("🔥 Interactive Confusion Matrix")
             st.plotly_chart(evaluation_results['interactive_confusion_matrix'], use_container_width=True)
         
-
+        # ROC Curve
         if 'roc_curve' in evaluation_results:
             st.subheader("📈 ROC Curve")
             st.plotly_chart(evaluation_results['roc_curve'], use_container_width=True)
         
-
+        # Precision-Recall Curve
         if 'pr_curve' in evaluation_results:
             st.subheader("📊 Precision-Recall Curve")
             st.plotly_chart(evaluation_results['pr_curve'], use_container_width=True)
         
-
+        # Class Distribution
         if 'class_distribution_plot' in evaluation_results:
             st.subheader("📊 Class Distribution Analysis")
             st.plotly_chart(evaluation_results['class_distribution_plot'], use_container_width=True)
     
     else:
-
+        # Regression visualizations
         
-
+        # Actual vs Predicted
         if 'actual_vs_predicted_plot' in evaluation_results:
             st.subheader("📈 Actual vs Predicted Values")
             st.plotly_chart(evaluation_results['actual_vs_predicted_plot'], use_container_width=True)
         
-
+        # Residual Analysis
         if 'residual_analysis' in evaluation_results:
             st.subheader("🔍 Residual Analysis")
             st.plotly_chart(evaluation_results['residual_analysis'], use_container_width=True)
         
-
+        # Prediction Intervals
         if 'prediction_intervals_plot' in evaluation_results:
             st.subheader("📊 Prediction Intervals")
             st.plotly_chart(evaluation_results['prediction_intervals_plot'], use_container_width=True)
@@ -1641,7 +1541,7 @@ def display_feature_analysis(evaluation_results, training_info):
     if 'feature_importance_plot_interactive' in evaluation_results:
         st.plotly_chart(evaluation_results['feature_importance_plot_interactive'], use_container_width=True)
         
-
+        # Feature importance statistics
         if 'feature_importance_stats' in evaluation_results:
             stats = evaluation_results['feature_importance_stats']
             
@@ -1670,18 +1570,18 @@ def display_detailed_reports(evaluation_results, training_info):
     """Display detailed classification/regression reports"""
     st.subheader("📋 Detailed Performance Reports")
     
-
+    # Classification report
     if 'classification_report' in evaluation_results:
         st.subheader("📊 Classification Report")
         report_df = evaluation_results['classification_report']
         
-
+        # Style the report
         styled_report = report_df.style.format("{:.4f}").background_gradient(
             subset=['precision', 'recall', 'f1-score'], cmap='RdYlGn'
         )
         st.dataframe(styled_report, use_container_width=True)
     
-
+    # Regression residual statistics
     if 'residual_stats' in evaluation_results:
         st.subheader("📊 Residual Statistics")
         residual_stats = evaluation_results['residual_stats']
@@ -1697,7 +1597,7 @@ def display_detailed_reports(evaluation_results, training_info):
         with col4:
             st.metric("Kurtosis", f"{residual_stats['kurtosis']:.4f}")
         
-
+        # Residual analysis interpretation
         if abs(residual_stats['mean']) < 0.01:
             st.success("✅ Residuals are well-centered around zero")
         else:
@@ -1712,7 +1612,7 @@ def export_and_deployment_section(training_info, evaluation_results):
     """Export model and generate deployment materials"""
     st.subheader("💾 Export & Deployment")
     
-
+    # Model export and report generation
     col1, col2 = st.columns(2)
     
     with col1:
@@ -1738,7 +1638,7 @@ def export_and_deployment_section(training_info, evaluation_results):
         if model_name != st.session_state.model_filename:
             st.session_state.model_filename = model_name
         
-
+        # Download model button
         if st.button("💾 Download Model", type="primary", use_container_width=True):
             try:
                 with st.spinner("Preparing model for download..."):
@@ -1924,7 +1824,7 @@ st.title('ML Model Prediction App')
 feature_inputs = {{}}
 """
         
-        for feature in training_info['feature_columns'][:5]: 
+        for feature in training_info['feature_columns'][:5]:  # Show first 5 features
             streamlit_code += f"""
 feature_inputs['{feature}'] = st.number_input('{feature}', value=0.0)
 """
@@ -2006,10 +1906,10 @@ def clean_numbers(df):
     for col in df.columns:
         if df[col].dtype == 'object':
             try:
-
+                # Clean Indonesian number format
                 cleaned = df[col].str.replace('\.', '', regex=True).str.replace(',', '.', regex=False).astype(float)
                 df[col] = cleaned
             except:
-
+                # If conversion fails, leave as is
                 pass
     return df

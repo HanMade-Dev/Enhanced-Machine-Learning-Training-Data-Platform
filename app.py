@@ -7,6 +7,7 @@ warnings.filterwarnings('ignore')
 from home import home_page
 from training import training_page
 from classification import classification_page
+
 st.set_page_config(
     page_title="Enhanced ML Platform",
     page_icon="🤖",
@@ -58,10 +59,14 @@ def initialize_session_state():
         st.session_state.current_page = 'home'
     if 'raw_data' not in st.session_state:
         st.session_state.raw_data = None
+    if 'original_raw_data' not in st.session_state:  
+        st.session_state.original_raw_data = None
     if 'working_data' not in st.session_state:
         st.session_state.working_data = None
     if 'cleaned_data' not in st.session_state:
         st.session_state.cleaned_data = None
+    if 'processed_data' not in st.session_state: 
+        st.session_state.processed_data = None
     if 'labeled_data' not in st.session_state:
         st.session_state.labeled_data = None
     if 'feature_columns' not in st.session_state:
@@ -86,10 +91,15 @@ def initialize_session_state():
         st.session_state.target_label_encoder = None
     if 'target_label_mapping' not in st.session_state:
         st.session_state.target_label_mapping = None
+    if 'feature_encoders' not in st.session_state:
+        st.session_state.feature_encoders = {}
+    if 'preprocessing_steps' not in st.session_state:
+        st.session_state.preprocessing_steps = []
 
 def main():
     """Main application function"""
     initialize_session_state()
+    
     if st.session_state.current_page == 'home':
         home_page()
     elif st.session_state.current_page == 'training':

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import PolynomialFeatures
 from scipy import stats
 import plotly.express as px
 
@@ -32,9 +33,7 @@ def convert_dtypes_safely(df):
     return df_copy
 
 def load_data(uploaded_files, header_row=0, headers_not_in_first_row=False):
-    """
-    Enhanced load data function with better preview and validation
-    """
+    """Enhanced load data function with better preview and validation"""
     if not uploaded_files:
         return None
     
@@ -59,6 +58,7 @@ def load_data(uploaded_files, header_row=0, headers_not_in_first_row=False):
             else:
                 st.error(f"Unsupported file format: {uploaded_file.name}")
                 continue
+                
             df.columns = df.columns.astype(str)
             df = convert_dtypes_safely(df)
             
@@ -77,6 +77,7 @@ def load_data(uploaded_files, header_row=0, headers_not_in_first_row=False):
     
     if not all_dataframes:
         return None
+        
     try:
         if len(all_dataframes) == 1:
             combined_df = all_dataframes[0]
@@ -91,9 +92,7 @@ def load_data(uploaded_files, header_row=0, headers_not_in_first_row=False):
         return None
 
 def detect_csv_delimiter(uploaded_file):
-    """
-    Detect CSV delimiter automatically
-    """
+    """Detect CSV delimiter automatically"""
     uploaded_file.seek(0)
     sample = uploaded_file.read(1024).decode('utf-8')
     uploaded_file.seek(0)
@@ -104,6 +103,7 @@ def detect_csv_delimiter(uploaded_file):
     for delimiter in delimiters:
         count = sample.count(delimiter)
         delimiter_counts[delimiter] = count
+        
     best_delimiter = max(delimiter_counts, key=delimiter_counts.get)
     if delimiter_counts[best_delimiter] == 0:
         return ','
@@ -111,9 +111,7 @@ def detect_csv_delimiter(uploaded_file):
     return best_delimiter
 
 def enhanced_data_preview(data):
-    """
-    Enhanced data preview with detailed statistics and visualizations
-    """
+    """Enhanced data preview with detailed statistics and visualizations"""
     st.subheader("📊 Data Analysis Dashboard")
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Overview", "📋 Data Types", "🔍 Missing Values", "📊 Statistics"])
     
@@ -127,6 +125,7 @@ def enhanced_data_preview(data):
             st.metric("Memory Usage", f"{data.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
         with col4:
             st.metric("Missing Values", data.isnull().sum().sum())
+            
         st.subheader("Data Preview")
         st.dataframe(data.head(20), use_container_width=True)
     
@@ -140,6 +139,7 @@ def enhanced_data_preview(data):
         })
         
         st.dataframe(dtype_df, use_container_width=True)
+        
         type_counts = data.dtypes.astype(str).value_counts()
         fig = px.pie(values=type_counts.values, names=type_counts.index, 
                     title="Data Type Distribution")
@@ -154,6 +154,7 @@ def enhanced_data_preview(data):
                 fig = px.bar(x=missing_data.values, y=missing_data.index, 
                            orientation='h', title="Missing Values by Column")
                 st.plotly_chart(fig, use_container_width=True)
+                
                 if len(missing_data) <= 20:  # Only for manageable number of columns
                     missing_matrix = data[missing_data.index].isnull().astype(int)
                     fig = px.imshow(missing_matrix.T, aspect="auto", 
@@ -167,6 +168,7 @@ def enhanced_data_preview(data):
         if len(numeric_columns) > 0:
             st.subheader("Numeric Columns Statistics")
             st.dataframe(data[numeric_columns].describe(), use_container_width=True)
+            
             if len(numeric_columns) > 0:
                 cols_to_plot = numeric_columns[:6]
                 for i in range(0, len(cols_to_plot), 2):
@@ -183,6 +185,7 @@ def enhanced_data_preview(data):
                             fig = px.histogram(data, x=cols_to_plot[i + 1], 
                                              title=f"Distribution of {cols_to_plot[i + 1]}")
                             st.plotly_chart(fig, use_container_width=True)
+                            
         categorical_columns = data.select_dtypes(include=['object', 'string', 'category']).columns
         if len(categorical_columns) > 0:
             st.subheader("Categorical Columns Analysis")
@@ -198,9 +201,7 @@ def enhanced_data_preview(data):
 
 def handle_missing_values(data, strategy, selected_columns=None, numeric_method="Mean", 
                          categorical_method="Mode", categorical_fill_value="Unknown"):
-    """
-    Enhanced missing values handling with more options
-    """
+    """Enhanced missing values handling with more options"""
     df = data.copy()
     
     if strategy == "Remove rows with any missing values":
@@ -219,8 +220,13 @@ def handle_missing_values(data, strategy, selected_columns=None, numeric_method=
                     df[col].fillna(df[col].mean(), inplace=True)
                 elif numeric_method == "Median":
                     df[col].fillna(df[col].median(), inplace=True)
+                elif numeric_method == "Mode":
+                    mode_value = df[col].mode()
+                    if len(mode_value) > 0:
+                        df[col].fillna(mode_value[0], inplace=True)
                 elif numeric_method == "Zero":
                     df[col].fillna(0, inplace=True)
+                    
         categorical_cols = df.select_dtypes(include=['object', 'string', 'category']).columns
         
         for col in categorical_cols:
@@ -233,14 +239,13 @@ def handle_missing_values(data, strategy, selected_columns=None, numeric_method=
                         df[col].fillna("Unknown", inplace=True)
                 elif categorical_method == "A constant value":
                     df[col].fillna(categorical_fill_value, inplace=True)
+                    
     df = convert_dtypes_safely(df)
     
     return df
 
 def detect_and_handle_outliers(data, method="IQR", action="mark"):
-    """
-    Enhanced outlier detection and handling
-    """
+    """Enhanced outlier detection and handling"""
     df = data.copy()
     numeric_columns = df.select_dtypes(include=[np.number]).columns
     outlier_info = {}
@@ -290,16 +295,19 @@ def detect_and_handle_outliers(data, method="IQR", action="mark"):
                     df[col] = df[col].clip(lower=lower_clip, upper=upper_clip)
             elif action == "mark" and outlier_count > 0:
                 df[f'{col}_outlier'] = outliers_mask
+                
     df = convert_dtypes_safely(df)
     
     return df, outlier_info
 
-def advanced_feature_engineering(data):
-    """
-    Advanced feature engineering for datetime and categorical columns
-    """
+def advanced_feature_engineering(data, encoding_method="Auto", cardinality_threshold=10, 
+                               create_interactions=False, interaction_degree=2, 
+                               selected_interaction_cols=None):
     df = data.copy()
     new_features = []
+    encoders_used = {}
+    
+    # Handle datetime columns first
     datetime_columns = df.select_dtypes(include=['datetime64']).columns
     
     for col in datetime_columns:
@@ -314,81 +322,215 @@ def advanced_feature_engineering(data):
             f'{col}_year', f'{col}_month', f'{col}_day', 
             f'{col}_dayofweek', f'{col}_quarter', f'{col}_is_weekend'
         ])
+    
+    # Handle categorical columns with PROPER encoding
     categorical_columns = df.select_dtypes(include=['object', 'string', 'category']).columns
     
     for col in categorical_columns:
-        if f'{col}_encoded' in df.columns:
-            continue
+        if col in df.columns:  # Check if column still exists
+            unique_count = df[col].nunique()
             
-        unique_count = df[col].nunique()
-        if unique_count <= 10 and unique_count > 1:
-            try:
-                df[col] = df[col].fillna('Unknown')
-                dummies = pd.get_dummies(df[col], prefix=col, drop_first=True, dtype=int)
-                df = pd.concat([df, dummies], axis=1)
-                new_features.extend(dummies.columns.tolist())
-                df = df.drop(columns=[col])
-                
-            except Exception as e:
-                st.warning(f"Error in one-hot encoding for {col}: {str(e)}")
+            # Fill missing values first
+            df[col] = df[col].fillna('Unknown')
+            
+            if encoding_method == "Auto":
+                # Use cardinality threshold to decide encoding method
+                if unique_count <= cardinality_threshold and unique_count > 1:
+                    # ONE-HOT ENCODING for low cardinality
+                    try:
+                        # Create dummy variables
+                        dummies = pd.get_dummies(df[col], prefix=col, drop_first=True, dtype=int)
+                        
+                        # Add to dataframe
+                        df = pd.concat([df, dummies], axis=1)
+                        new_features.extend(dummies.columns.tolist())
+                        
+                        # Store encoder info
+                        encoders_used[col] = {
+                            'type': 'OneHot',
+                            'categories': df[col].unique().tolist(),
+                            'new_columns': dummies.columns.tolist()
+                        }
+                        
+                        # Remove original column
+                        df = df.drop(columns=[col])
+                        
+                        st.success(f"✅ One-Hot Encoded '{col}' -> {len(dummies.columns)} new features")
+                        
+                    except Exception as e:
+                        st.warning(f"⚠️ One-Hot encoding failed for {col}: {str(e)}")
+                        # Fallback to label encoding
+                        try:
+                            le = LabelEncoder()
+                            df[f'{col}_encoded'] = le.fit_transform(df[col].astype(str))
+                            new_features.append(f'{col}_encoded')
+                            
+                            encoders_used[col] = {
+                                'type': 'Label',
+                                'encoder': le,
+                                'classes': le.classes_.tolist()
+                            }
+                            
+                            df = df.drop(columns=[col])
+                            st.info(f"ℹ️ Label Encoded '{col}' as fallback")
+                            
+                        except Exception as e2:
+                            st.error(f"❌ Both encodings failed for {col}: {str(e2)}")
+                            
+                else:
+                    # LABEL ENCODING for high cardinality
+                    try:
+                        le = LabelEncoder()
+                        df[f'{col}_encoded'] = le.fit_transform(df[col].astype(str))
+                        new_features.append(f'{col}_encoded')
+                        
+                        encoders_used[col] = {
+                            'type': 'Label',
+                            'encoder': le,
+                            'classes': le.classes_.tolist()
+                        }
+                        
+                        df = df.drop(columns=[col])
+                        st.success(f"✅ Label Encoded '{col}' ({unique_count} categories)")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Label encoding failed for {col}: {str(e)}")
+                        
+            elif encoding_method == "One-Hot Encoding":
+                # Force One-Hot Encoding
+                if unique_count <= 50:  # Reasonable limit
+                    try:
+                        dummies = pd.get_dummies(df[col], prefix=col, drop_first=True, dtype=int)
+                        df = pd.concat([df, dummies], axis=1)
+                        new_features.extend(dummies.columns.tolist())
+                        
+                        encoders_used[col] = {
+                            'type': 'OneHot',
+                            'categories': df[col].unique().tolist(),
+                            'new_columns': dummies.columns.tolist()
+                        }
+                        
+                        df = df.drop(columns=[col])
+                        st.success(f"✅ One-Hot Encoded '{col}' -> {len(dummies.columns)} features")
+                        
+                    except Exception as e:
+                        st.error(f"❌ One-Hot encoding failed for {col}: {str(e)}")
+                else:
+                    st.warning(f"⚠️ Skipping One-Hot encoding for '{col}' (too many categories: {unique_count})")
+                    
+            elif encoding_method == "Label Encoding":
+                # Force Label Encoding
                 try:
-                    df[col] = df[col].fillna('Unknown')
                     le = LabelEncoder()
                     df[f'{col}_encoded'] = le.fit_transform(df[col].astype(str))
                     new_features.append(f'{col}_encoded')
+                    
+                    encoders_used[col] = {
+                        'type': 'Label',
+                        'encoder': le,
+                        'classes': le.classes_.tolist()
+                    }
+                    
                     df = df.drop(columns=[col])
-                except Exception as e2:
-                    st.warning(f"Error in label encoding for {col}: {str(e2)}")
-        else:
-            try:
-                df[col] = df[col].fillna('Unknown')
-                le = LabelEncoder()
-                df[f'{col}_encoded'] = le.fit_transform(df[col].astype(str))
-                new_features.append(f'{col}_encoded')
-                df = df.drop(columns=[col])
-            except Exception as e:
-                st.warning(f"Error in label encoding for {col}: {str(e)}")
+                    st.success(f"✅ Label Encoded '{col}'")
+                    
+                except Exception as e:
+                    st.error(f"❌ Label encoding failed for {col}: {str(e)}")
+    
+    # Create interaction features if requested
+    if create_interactions and selected_interaction_cols:
+        try:
+            # Filter to only numeric columns that exist
+            available_cols = [col for col in selected_interaction_cols if col in df.columns]
+            numeric_cols = df[available_cols].select_dtypes(include=[np.number]).columns.tolist()
+            
+            if len(numeric_cols) >= 2:
+                interaction_data = df[numeric_cols]
+                
+                # Create polynomial features
+                poly = PolynomialFeatures(degree=interaction_degree, include_bias=False, interaction_only=False)
+                poly_features = poly.fit_transform(interaction_data)
+                
+                # Get feature names
+                feature_names = poly.get_feature_names_out(numeric_cols)
+                
+                # Create DataFrame with polynomial features
+                poly_df = pd.DataFrame(poly_features, columns=feature_names, index=df.index)
+                
+                # Remove original features (they're already in the main df)
+                original_features = numeric_cols
+                poly_df = poly_df.drop(columns=original_features, errors='ignore')
+                
+                # Add new interaction features
+                df = pd.concat([df, poly_df], axis=1)
+                new_features.extend(poly_df.columns.tolist())
+                
+                st.success(f"✅ Created {len(poly_df.columns)} interaction features")
+                
+            else:
+                st.warning("⚠️ Need at least 2 numeric columns for interaction features")
+                
+        except Exception as e:
+            st.error(f"❌ Error creating interaction features: {str(e)}")
+    
+    # Final cleanup - ensure all columns are numeric
     for col in df.columns:
         if df[col].dtype == 'object':
             try:
+                # Try to convert to numeric
                 df[col] = pd.to_numeric(df[col], errors='coerce')
                 df[col] = df[col].fillna(0)
             except:
+                # If conversion fails, drop the column
+                st.warning(f"⚠️ Dropping non-numeric column: {col}")
                 df = df.drop(columns=[col])
                 if col in new_features:
                     new_features.remove(col)
+    
     df = convert_dtypes_safely(df)
+    
+    # Store encoders in session state for later use
+    if 'feature_encoders' not in st.session_state:
+        st.session_state.feature_encoders = {}
+    st.session_state.feature_encoders.update(encoders_used)
     
     return df, new_features
 
-def normalize_data(data, method="Min-Max Scaling"):
-    """
-    Enhanced data normalization with multiple methods
-    """
+def normalize_data(data, method="Min-Max Scaling", selected_columns=None):
+    """Enhanced data normalization with column selection"""
     df = data.copy()
-    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
     
     if len(numeric_columns) == 0:
         return df
     
+    # Use selected columns or all numeric columns
+    columns_to_normalize = selected_columns if selected_columns else numeric_columns
+    columns_to_normalize = [col for col in columns_to_normalize if col in numeric_columns]
+    
+    if len(columns_to_normalize) == 0:
+        st.warning("⚠️ No valid numeric columns selected for normalization")
+        return df
+    
     if method == "Min-Max Scaling":
         scaler = MinMaxScaler()
-    elif method == "Standard Scaling (Z-score)":
+    elif method == "Standard Scaling":
         scaler = StandardScaler()
     elif method == "Robust Scaling":
         scaler = RobustScaler()
     else:
         return df
     
-    df[numeric_columns] = scaler.fit_transform(df[numeric_columns])
+    # Apply scaling
+    df[columns_to_normalize] = scaler.fit_transform(df[columns_to_normalize])
     df = convert_dtypes_safely(df)
+    
+    st.success(f"✅ Applied {method} to {len(columns_to_normalize)} columns")
     
     return df
 
 def show_preprocessing_summary(original_data, processed_data, outlier_info=None, new_features=None):
-    """
-    Show comprehensive preprocessing summary
-    """
+    """Show comprehensive preprocessing summary"""
     st.subheader("📊 Preprocessing Summary")
     
     col1, col2 = st.columns(2)
@@ -406,6 +548,7 @@ def show_preprocessing_summary(original_data, processed_data, outlier_info=None,
         st.write(f"- Columns: {processed_data.shape[1]}")
         st.write(f"- Missing values: {processed_data.isnull().sum().sum()}")
         st.write(f"- Memory usage: {processed_data.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+    
     if outlier_info:
         st.write("**Outliers Detected:**")
         outlier_df = pd.DataFrame(outlier_info).T
@@ -413,15 +556,14 @@ def show_preprocessing_summary(original_data, processed_data, outlier_info=None,
             outlier_df.columns = ['Count', 'Percentage', 'Values']
             outlier_df['Percentage'] = outlier_df['Percentage'].round(2)
             st.dataframe(outlier_df[['Count', 'Percentage']], use_container_width=True)
+    
     if new_features:
         st.write(f"**New Features Created:** {len(new_features)}")
         with st.expander("View new features"):
             st.write(new_features)
 
 def clean_indonesian_numbers(df):
-    """
-    Clean Indonesian number format (with dots as thousand separators)
-    """
+    """Clean Indonesian number format (with dots as thousand separators)"""
     df_clean = df.copy()
     
     for col in df_clean.columns:
